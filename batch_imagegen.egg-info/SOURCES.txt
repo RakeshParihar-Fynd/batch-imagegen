@@ -1,0 +1,8 @@
+README.md
+pyproject.toml
+batch_imagegen/__init__.py
+batch_imagegen.egg-info/PKG-INFO
+batch_imagegen.egg-info/SOURCES.txt
+batch_imagegen.egg-info/dependency_links.txt
+batch_imagegen.egg-info/requires.txt
+batch_imagegen.egg-info/top_level.txt
