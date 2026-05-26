@@ -138,7 +138,10 @@ def _render_new_batch() -> None:
                 _runner().submit(batch.batch_id, api_key)
             st.toast(f"Batch '{batch.name}' started — {len(batch.jobs)} images queued")
             st.session_state["submitting"] = False
-            st.session_state["page"] = "Batches"
+            # Defer page switch — we cannot write to a widget-backed key
+            # ("page") after the radio has been instantiated this run.
+            # main() picks this up before rendering the sidebar on the next rerun.
+            st.session_state["_pending_page"] = "Batches"
             st.session_state["selected_batch"] = batch.batch_id
             st.rerun()
         except Exception:
@@ -269,6 +272,11 @@ def _sidebar() -> None:
 
 
 def main() -> None:
+    # Apply any deferred page switch BEFORE the radio widget is instantiated.
+    # Streamlit forbids writing to a widget-backed session_state key after
+    # the widget exists in the current run.
+    if "_pending_page" in st.session_state:
+        st.session_state["page"] = st.session_state.pop("_pending_page")
     _sidebar()
     page = st.sidebar.radio("Page", ["New batch", "Batches"], key="page")
     st_autorefresh(interval=2000, key="auto_refresh")
