@@ -1,6 +1,6 @@
 # batch-imagegen
 
-Local Streamlit tool for the annotation team to run batch image generation jobs against the [PixelBin Prediction API](https://www.pixelbin.io/docs/prediction-api/overview). Supports **Nano Banana Pro** and **GPT Image 2**.
+Local Streamlit tool for the annotation team to run batch image generation jobs against the [PixelBin Prediction API](https://www.pixelbin.io/docs/prediction-api/overview) and [Fal API](https://fal.ai/models). Supports **Nano Banana Pro**, **GPT Image 2**, and **Qwen Image Edit (Fal)**.
 
 ## Features
 
@@ -25,8 +25,10 @@ streamlit run app.py
 
 Open the URL it prints. In the sidebar:
 
-1. Paste your PixelBin API token (Settings → API tokens in the PixelBin console). It is stored only in this browser session — never written to disk.
-2. Adjust "Concurrent workers" if needed.
+1. Paste your PixelBin API token (Settings → API tokens in the PixelBin console) for Nano Banana Pro / GPT Image 2.
+2. Paste your Fal API key (`id:secret`, from fal.ai dashboard → Keys) for Qwen.
+3. Keys are stored only in this browser session — never written to disk.
+4. Adjust "Concurrent workers" if needed.
 
 Then on the **New batch** page, fill name + model + prompt, pick "Upload files" or "Paste URLs", and click **Start batch**. The **Batches** page shows live progress and the **Download ZIP** button.
 

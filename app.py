@@ -17,6 +17,11 @@ import pandas as pd
 NANO_RATIOS = ["auto", "1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"]
 GPT_RATIOS  = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"]
 RESOLUTIONS = ["1K", "2K", "4K"]
+MODEL_OPTIONS = {
+    "Nano Banana Pro": "nanoBananaPro_generate",
+    "GPT Image 2": "gpt2_generate",
+    "Qwen Image Edit (FAL)": "fal-ai/qwen-image-edit",
+}
 
 
 st.set_page_config(page_title="Batch Image Gen", layout="wide")
@@ -46,8 +51,8 @@ def _save_uploaded_files(files) -> list[str]:
 def _render_new_batch() -> None:
     st.subheader("Create a new batch")
     name = st.text_input("Batch name", value="")
-    model_label = st.radio("Model", ["Nano Banana Pro", "GPT Image 2"], horizontal=True)
-    model = "nanoBananaPro_generate" if model_label == "Nano Banana Pro" else "gpt2_generate"
+    model_label = st.radio("Model", list(MODEL_OPTIONS.keys()), horizontal=True)
+    model = MODEL_OPTIONS[model_label]
 
     with st.expander("Model parameters", expanded=True):
         if model == "nanoBananaPro_generate":
@@ -55,10 +60,14 @@ def _render_new_batch() -> None:
             resolution = st.selectbox("Output resolution", RESOLUTIONS, index=0)
             params = {"aspect_ratio": aspect, "output_resolution": resolution}
         else:
-            aspect = st.selectbox("Aspect ratio", GPT_RATIOS, index=0)
-            resolution = st.selectbox("Output resolution", RESOLUTIONS, index=0)
-            quality = st.selectbox("Quality", ["low", "medium", "high"], index=2)
-            params = {"aspect_ratio": aspect, "output_resolution": resolution, "quality": quality}
+            if model == "gpt2_generate":
+                aspect = st.selectbox("Aspect ratio", GPT_RATIOS, index=0)
+                resolution = st.selectbox("Output resolution", RESOLUTIONS, index=0)
+                quality = st.selectbox("Quality", ["low", "medium", "high"], index=2)
+                params = {"aspect_ratio": aspect, "output_resolution": resolution, "quality": quality}
+            else:
+                params = {}
+                st.caption("Qwen uses prompt + image only. No extra model parameters required.")
 
     prompt = st.text_area("Prompt", height=150)
     st.caption(f"{len(prompt)} chars")
@@ -94,13 +103,15 @@ def _render_new_batch() -> None:
         est_min = max(1, len(sources) / max(1, concurrency) * 30 / 60)
         st.caption(f"Estimated: ~{est_min:.0f} min at {concurrency} workers")
 
-    api_key = st.session_state.get("api_key", "")
-    disabled = is_submitting or not (name.strip() and prompt.strip() and sources and api_key)
+    pixelbin_api_key = st.session_state.get("pixelbin_api_key", "")
+    fal_api_key = st.session_state.get("fal_api_key", "")
+    selected_key = fal_api_key if model == "fal-ai/qwen-image-edit" else pixelbin_api_key
+    disabled = is_submitting or not (name.strip() and prompt.strip() and sources and selected_key)
     if is_submitting:
         tooltip = "Starting batch…"
         label = "Starting…"
     else:
-        tooltip = "" if not disabled else "Fill name, prompt, sources, and add an API key in the sidebar."
+        tooltip = "" if not disabled else "Fill name, prompt, sources, and add the required API key in the sidebar."
         label = "Start batch"
 
     if st.button(label, disabled=disabled, help=tooltip, type="primary", key="start_batch"):
@@ -135,7 +146,11 @@ def _render_new_batch() -> None:
                     st.error(str(e))
                     return
                 _store().save(batch)
-                _runner().submit(batch.batch_id, api_key)
+                _runner().submit(
+                    batch.batch_id,
+                    pixelbin_api_key,
+                    fal_key=fal_api_key,
+                )
             st.toast(f"Batch '{batch.name}' started — {len(batch.jobs)} images queued")
             st.session_state["submitting"] = False
             # Defer page switch — we cannot write to a widget-backed key
@@ -217,8 +232,10 @@ def _render_batches_page() -> None:
                 st.session_state[zip_cache_key] = True
                 st.rerun()
     with col2:
-        api_key = st.session_state.get("api_key", "")
-        retry_disabled = c["FAILURE"] == 0 or not api_key
+        pixelbin_api_key = st.session_state.get("pixelbin_api_key", "")
+        fal_api_key = st.session_state.get("fal_api_key", "")
+        required_key = fal_api_key if batch.model == "fal-ai/qwen-image-edit" else pixelbin_api_key
+        retry_disabled = c["FAILURE"] == 0 or not required_key
         if st.button("Retry failed", disabled=retry_disabled,
                      key=f"retry_{batch.batch_id}"):
             for j in batch.jobs:
@@ -232,7 +249,7 @@ def _render_batches_page() -> None:
             for k in list(st.session_state.keys()):
                 if isinstance(k, str) and k.startswith(f"zip_built::{batch.batch_id}::"):
                     del st.session_state[k]
-            _runner().submit(batch.batch_id, api_key)
+            _runner().submit(batch.batch_id, pixelbin_api_key, fal_key=fal_api_key)
             st.toast("Retrying failed jobs…")
             st.rerun()
 
@@ -260,14 +277,22 @@ def _render_batches_page() -> None:
 def _sidebar() -> None:
     st.sidebar.header("Settings")
     st.sidebar.text_input(
-        "PixelBin API Key", type="password", key="api_key",
+        "PixelBin API Key", type="password", key="pixelbin_api_key",
         help="Stored only in this session. Never written to disk.",
     )
+    st.sidebar.text_input(
+        "FAL API Key", type="password", key="fal_api_key",
+        help="Required only for Qwen model. Format: id:secret.",
+    )
     st.sidebar.slider("Concurrent workers", 1, 20, value=5, key="concurrency")
-    if not st.session_state.get("api_key"):
+    if not st.session_state.get("pixelbin_api_key"):
         st.sidebar.warning(
-            "Paste your PixelBin API key to start. Get one at "
+            "Paste your PixelBin API key for Nano Banana Pro / GPT Image 2. Get one at "
             "app.pixelbin.io › Settings › API tokens."
+        )
+    if not st.session_state.get("fal_api_key"):
+        st.sidebar.info(
+            "Paste your FAL API key to use Qwen. Get one at fal.ai/dashboard/keys."
         )
 
 

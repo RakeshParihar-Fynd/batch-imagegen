@@ -30,6 +30,20 @@ def test_build_input_gpt2_includes_quality():
     assert payload["quality"] == "high"
 
 
+def test_build_input_qwen_uses_single_image_url_field():
+    payload = build_input(
+        Model.QWEN_IMAGE_EDIT,
+        prompt="clean background",
+        source_url="https://cdn/x.jpg",
+        params={"strength": 0.4},
+    )
+    assert payload == {
+        "prompt": "clean background",
+        "image_url": "https://cdn/x.jpg",
+        "strength": 0.4,
+    }
+
+
 @pytest.mark.asyncio
 async def test_submit_and_wait_returns_output_on_success():
     client = MagicMock()

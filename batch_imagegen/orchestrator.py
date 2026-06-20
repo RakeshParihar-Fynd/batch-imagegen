@@ -15,7 +15,7 @@ except ImportError:
 
 MAX_ATTEMPTS = 2  # initial + 1 retry
 
-UploadFn = Callable[[Path], Awaitable[str]]
+UploadFn = Callable[[str, Path], Awaitable[str]]
 SubmitFn = Callable[..., Awaitable[tuple[str, str]]]
 
 
@@ -49,7 +49,7 @@ async def _run_one(
                 job.updated_at = _utcnow()
                 store.save(batch)
                 try:
-                    job.source_url = await upload_fn(Path(job.source))
+                    job.source_url = await upload_fn(batch.model, Path(job.source))
                 except Exception as e:
                     job.status = JobStatus.FAILURE
                     job.error = f"upload failed: {e}"
@@ -106,21 +106,38 @@ import threading
 
 from .client import make_pixelbin_client
 from .predictor import Model, submit_and_wait
+from .fal_client import qwen_edit, upload_local_file_to_fal
 from .uploader import upload_local_file
 
 
-# Factory: (api_key) -> (upload_fn, submit_fn) bound for this batch
-Factory = Callable[[str], Tuple[UploadFn, SubmitFn]]
+# Factory: (pixelbin_api_key, fal_api_key?) -> (upload_fn, submit_fn) bound for this batch
+Factory = Callable[..., Tuple[UploadFn, SubmitFn]]
 
 
-def default_factory(api_key: str) -> Tuple[UploadFn, SubmitFn]:
-    client = make_pixelbin_client(api_key)
+def default_factory(api_key: str, fal_key: str | None = None) -> Tuple[UploadFn, SubmitFn]:
+    client = make_pixelbin_client(api_key) if api_key and api_key.strip() else None
 
-    async def upload_fn(path: Path) -> str:
+    async def upload_fn(model_value: str, path: Path) -> str:
+        model = Model(model_value)
+        if model == Model.QWEN_IMAGE_EDIT:
+            return await upload_local_file_to_fal(path, fal_key)
+        if client is None:
+            raise ValueError("PixelBin API key is required")
         return await upload_local_file(client, path)
 
     async def submit_fn(model_value: str, prompt: str, source_url: str, params: dict) -> tuple[str, str]:
-        return await submit_and_wait(client, Model(model_value), prompt, source_url, params)
+        model = Model(model_value)
+        if model == Model.QWEN_IMAGE_EDIT:
+            return await qwen_edit(
+                model_id=model.value,
+                prompt=prompt,
+                source_url=source_url,
+                params=params,
+                fal_key=fal_key or "",
+            )
+        if client is None:
+            raise ValueError("PixelBin API key is required")
+        return await submit_and_wait(client, model, prompt, source_url, params)
 
     return upload_fn, submit_fn
 
@@ -131,13 +148,13 @@ class OrchestratorRunner:
     def __init__(self, store: BatchStore, factory: Factory = default_factory):
         self._store = store
         self._factory = factory
-        self._queue: "queue.Queue[tuple[str, str]]" = queue.Queue()
+        self._queue: "queue.Queue[tuple[str, str, str | None]]" = queue.Queue()
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
 
-    def submit(self, batch_id: str, api_key: str) -> None:
+    def submit(self, batch_id: str, api_key: str, fal_key: str | None = None) -> None:
         self._ensure_thread()
-        self._queue.put((batch_id, api_key))
+        self._queue.put((batch_id, api_key, fal_key))
 
     def active_count(self) -> int:
         return self._queue.qsize() + (1 if self._thread and self._thread.is_alive() else 0)
@@ -159,9 +176,12 @@ class OrchestratorRunner:
 
     async def _consume(self) -> None:
         while True:
-            batch_id, api_key = await asyncio.to_thread(self._queue.get)
+            batch_id, api_key, fal_key = await asyncio.to_thread(self._queue.get)
             try:
-                upload_fn, submit_fn = self._factory(api_key)
+                try:
+                    upload_fn, submit_fn = self._factory(api_key, fal_key)
+                except TypeError:
+                    upload_fn, submit_fn = self._factory(api_key)  # backward compatibility for tests/custom factories
                 await process_batch(batch_id, self._store, upload_fn, submit_fn)
             except Exception as e:
                 # Top-level crash: mark all non-terminal jobs as FAILURE.

@@ -8,6 +8,7 @@ dependencies = [
     "streamlit-autorefresh>=1.0.1",
     "pixelbin>=3.0",
     "httpx>=0.27",
+    "fal-client>=0.5",
 ]
 
 [project.optional-dependencies]
