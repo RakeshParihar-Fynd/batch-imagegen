@@ -71,7 +71,8 @@ def _render_new_batch() -> None:
                 params = {}
                 st.caption("Qwen uses prompt + image only. No extra model parameters required.")
 
-    with st.expander("Additional settings", expanded=False):
+    with st.expander("Additional settings (all models)", expanded=True):
+        st.caption("These settings are sent to the selected model when supported.")
         negative_prompt = st.text_area(
             "Negative prompt",
             value="",
@@ -87,6 +88,11 @@ def _render_new_batch() -> None:
             with col_h:
                 custom_height = st.number_input("Height", min_value=64, max_value=4096, value=1024, step=64)
         output_format = st.selectbox("Output format", OUTPUT_FORMATS, index=0)
+        col_seed, col_count = st.columns(2)
+        with col_seed:
+            seed = st.number_input("Seed (optional)", min_value=0, max_value=2_147_483_647, value=0, step=1)
+        with col_count:
+            num_images = st.number_input("Number of images", min_value=1, max_value=4, value=1, step=1)
 
     if negative_prompt.strip():
         params["negative_prompt"] = negative_prompt.strip()
@@ -96,6 +102,9 @@ def _render_new_batch() -> None:
         elif image_size != "custom":
             params["image_size"] = image_size
     params["output_format"] = output_format
+    if int(seed) > 0:
+        params["seed"] = int(seed)
+    params["num_images"] = int(num_images)
 
     prompt = st.text_area("Prompt", height=150)
     st.caption(f"{len(prompt)} chars")
