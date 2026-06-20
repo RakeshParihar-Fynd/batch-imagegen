@@ -63,7 +63,7 @@ async def qwen_edit(
     _set_fal_key_env(key)
     fal_client = _load_fal_client()
 
-    arguments = {"image_url": source_url, "prompt": prompt, **params}
+    arguments = {"image_urls": [source_url], "prompt": prompt, **params}
 
     try:
         response = await asyncio.to_thread(
@@ -74,7 +74,8 @@ async def qwen_edit(
     except Exception as e:
         raise FalError(str(e)) from e
 
-    images = response.get("images") if isinstance(response, dict) else None
+    payload = response.get("data") if isinstance(response, dict) and isinstance(response.get("data"), dict) else response
+    images = payload.get("images") if isinstance(payload, dict) else None
     if not images:
         raise FalError("Fal response missing output images")
     first = images[0] if isinstance(images[0], dict) else {}
@@ -82,5 +83,7 @@ async def qwen_edit(
     if not output_url:
         raise FalError("Fal response missing image URL")
 
-    request_id = str(response.get("request_id") or "") if isinstance(response, dict) else ""
+    request_id = ""
+    if isinstance(response, dict):
+        request_id = str(response.get("requestId") or response.get("request_id") or "")
     return output_url, request_id

@@ -30,7 +30,7 @@ def test_build_input_gpt2_includes_quality():
     assert payload["quality"] == "high"
 
 
-def test_build_input_qwen_uses_single_image_url_field():
+def test_build_input_qwen_uses_image_urls_list():
     payload = build_input(
         Model.QWEN_IMAGE_EDIT,
         prompt="clean background",
@@ -39,7 +39,7 @@ def test_build_input_qwen_uses_single_image_url_field():
     )
     assert payload == {
         "prompt": "clean background",
-        "image_url": "https://cdn/x.jpg",
+        "image_urls": ["https://cdn/x.jpg"],
         "strength": 0.4,
     }
 

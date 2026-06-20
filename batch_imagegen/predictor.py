@@ -6,7 +6,7 @@ from typing import Any
 class Model(str, Enum):
     NANO_BANANA_PRO = "nanoBananaPro_generate"
     GPT_IMAGE_2     = "gpt2_generate"
-    QWEN_IMAGE_EDIT = "fal-ai/qwen-image-edit"
+    QWEN_IMAGE_EDIT = "fal-ai/qwen-image-2/pro/edit"
 
 
 class PredictionError(Exception):
@@ -15,7 +15,7 @@ class PredictionError(Exception):
 
 def build_input(model: Model, *, prompt: str, source_url: str, params: dict[str, Any]) -> dict[str, Any]:
     if model == Model.QWEN_IMAGE_EDIT:
-        return {"prompt": prompt, "image_url": source_url, **params}
+        return {"prompt": prompt, "image_urls": [source_url], **params}
     return {"prompt": prompt, "images": [source_url], **params}
 
 

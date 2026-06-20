@@ -20,7 +20,7 @@ RESOLUTIONS = ["1K", "2K", "4K"]
 MODEL_OPTIONS = {
     "Nano Banana Pro": "nanoBananaPro_generate",
     "GPT Image 2": "gpt2_generate",
-    "Qwen Image Edit (FAL)": "fal-ai/qwen-image-edit",
+    "Qwen Image Edit (FAL)": "fal-ai/qwen-image-2/pro/edit",
 }
 
 
@@ -105,7 +105,7 @@ def _render_new_batch() -> None:
 
     pixelbin_api_key = st.session_state.get("pixelbin_api_key", "")
     fal_api_key = st.session_state.get("fal_api_key", "")
-    selected_key = fal_api_key if model == "fal-ai/qwen-image-edit" else pixelbin_api_key
+    selected_key = fal_api_key if model == "fal-ai/qwen-image-2/pro/edit" else pixelbin_api_key
     disabled = is_submitting or not (name.strip() and prompt.strip() and sources and selected_key)
     if is_submitting:
         tooltip = "Starting batch…"
@@ -234,7 +234,7 @@ def _render_batches_page() -> None:
     with col2:
         pixelbin_api_key = st.session_state.get("pixelbin_api_key", "")
         fal_api_key = st.session_state.get("fal_api_key", "")
-        required_key = fal_api_key if batch.model == "fal-ai/qwen-image-edit" else pixelbin_api_key
+        required_key = fal_api_key if batch.model == "fal-ai/qwen-image-2/pro/edit" else pixelbin_api_key
         retry_disabled = c["FAILURE"] == 0 or not required_key
         if st.button("Retry failed", disabled=retry_disabled,
                      key=f"retry_{batch.batch_id}"):
