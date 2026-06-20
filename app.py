@@ -17,6 +17,8 @@ import pandas as pd
 NANO_RATIOS = ["auto", "1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"]
 GPT_RATIOS  = ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9"]
 RESOLUTIONS = ["1K", "2K", "4K"]
+OUTPUT_FORMATS = ["png", "jpeg", "webp"]
+IMAGE_SIZE_PRESETS = ["Default", "square_hd", "landscape_16_9", "portrait_16_9", "custom"]
 MODEL_OPTIONS = {
     "Nano Banana Pro": "nanoBananaPro_generate",
     "GPT Image 2": "gpt2_generate",
@@ -68,6 +70,32 @@ def _render_new_batch() -> None:
             else:
                 params = {}
                 st.caption("Qwen uses prompt + image only. No extra model parameters required.")
+
+    with st.expander("Additional settings", expanded=False):
+        negative_prompt = st.text_area(
+            "Negative prompt",
+            value="",
+            height=90,
+            placeholder="low quality, deformed, blurry",
+        )
+        image_size = st.selectbox("Image size", IMAGE_SIZE_PRESETS, index=0)
+        custom_width = custom_height = None
+        if image_size == "custom":
+            col_w, col_h = st.columns(2)
+            with col_w:
+                custom_width = st.number_input("Width", min_value=64, max_value=4096, value=1024, step=64)
+            with col_h:
+                custom_height = st.number_input("Height", min_value=64, max_value=4096, value=1024, step=64)
+        output_format = st.selectbox("Output format", OUTPUT_FORMATS, index=0)
+
+    if negative_prompt.strip():
+        params["negative_prompt"] = negative_prompt.strip()
+    if image_size != "Default":
+        if image_size == "custom" and custom_width and custom_height:
+            params["image_size"] = {"width": int(custom_width), "height": int(custom_height)}
+        elif image_size != "custom":
+            params["image_size"] = image_size
+    params["output_format"] = output_format
 
     prompt = st.text_area("Prompt", height=150)
     st.caption(f"{len(prompt)} chars")
